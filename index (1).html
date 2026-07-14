@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Strawberry Hunt — Payop Summer Camp</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@400;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<!-- Firebase (free, no backend needed) — powers the shared, always-on leaderboard.
+     Setup steps are in the chat reply that shipped this file. -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<style>
+:root{
+  /* Payop brand palette */
+  --bg-deep:#151F6D;     /* Midnight Blue */
+  --bg-vivid:#1C51FB;    /* RISD Blue */
+  --card:#92C1E9;        /* Jordy Blue */
+  --ink:#151F6D;         /* Midnight Blue, used as text ink */
+  --coral:#FC4C02;       /* Tangelo */
+  --coral-dark:#9A3324;  /* Burnt Umber */
+  --leaf:#26D07C;        /* Emerald */
+  --field-a:#00A74A;     /* Pigment Green */
+  --field-b:#00491E;     /* Pakistan Green */
+  --citrus:#FFB25B;      /* Sandy Brown */
+  --berry:#DA1BEF;       /* Phlox */
+  --violet:#3D0386;      /* Indigo 1 */
+  --heliotrope:#ED6CFF;  /* Heliotrope */
+  --font-display:'Fredoka', sans-serif;
+  --font-body:'Nunito', sans-serif;
+  --font-mono:'Space Mono', monospace;
+}
+*{box-sizing:border-box;}
+body{
+  margin:0;
+  min-height:100vh;
+  background:
+    radial-gradient(circle at 18% 15%, rgba(255,178,91,0.16), transparent 42%),
+    radial-gradient(circle at 85% 80%, rgba(28,81,251,0.35), transparent 45%),
+    var(--bg-deep);
+  font-family:var(--font-body);
+  color:var(--card);
+  display:flex;
+  justify-content:center;
+  padding:32px 16px 60px;
+}
+.wrap{width:100%;max-width:760px;}
+.eyebrow{
+  font-family:var(--font-mono);
+  font-size:0.8rem;
+  letter-spacing:3px;
+  text-transform:uppercase;
+  color:var(--citrus);
+  text-align:center;
+  margin-bottom:6px;
+}
+h1{
+  font-family:var(--font-display);
+  font-size:clamp(1.8rem,6vw,2.6rem);
+  text-align:center;
+  margin:0 0 4px;
+  color:var(--card);
+}
+.subtitle{
+  text-align:center;
+  color:rgba(146,193,233,0.85);
+  margin:0 0 24px;
+  font-size:0.95rem;
+}
+.postcard{
+  position:relative;
+  background:var(--card);
+  border-radius:16px;
+  padding:24px;
+  box-shadow:0 3px 0 rgba(21,31,109,0.25), 0 20px 45px rgba(0,0,0,0.4);
+}
+.postcard::before{
+  content:'';
+  position:absolute;
+  inset:10px;
+  border:2px dashed rgba(21,31,109,0.28);
+  border-radius:9px;
+  pointer-events:none;
+}
+.stamp{
+  position:absolute;
+  top:-16px;
+  right:22px;
+  background:var(--citrus);
+  color:var(--ink);
+  font-family:var(--font-mono);
+  font-weight:700;
+  font-size:0.75rem;
+  padding:7px 10px;
+  border:2px dashed var(--ink);
+  border-radius:4px;
+  transform:rotate(6deg);
+  box-shadow:0 4px 10px rgba(0,0,0,0.3);
+}
+.hud{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  flex-wrap:wrap;
+  margin-bottom:14px;
+  position:relative;
+  z-index:2;
+}
+.chip{
+  font-family:var(--font-mono);
+  background:var(--ink);
+  color:var(--citrus);
+  padding:8px 14px;
+  border-radius:8px;
+  font-size:1.05rem;
+  letter-spacing:1px;
+}
+.found-count{
+  font-weight:700;
+  color:var(--ink);
+}
+button.primary{
+  font-family:var(--font-display);
+  background:var(--coral);
+  color:#fff;
+  border:none;
+  padding:10px 22px;
+  border-radius:999px;
+  font-weight:600;
+  font-size:0.95rem;
+  cursor:pointer;
+  box-shadow:0 4px 0 var(--coral-dark);
+  transition:transform .08s ease;
+}
+button.primary:hover{filter:brightness(1.05);}
+button.primary:active{transform:translateY(2px);box-shadow:0 2px 0 var(--coral-dark);}
+button.primary:focus-visible{outline:3px solid var(--ink);outline-offset:2px;}
+button.ghost{
+  font-family:var(--font-body);
+  background:transparent;
+  border:2px solid var(--ink);
+  color:var(--ink);
+  padding:8px 16px;
+  border-radius:999px;
+  font-weight:700;
+  cursor:pointer;
+}
+button.ghost:focus-visible{outline:3px solid var(--ink);outline-offset:2px;}
+
+.field-wrap{
+  position:relative;
+  border-radius:10px;
+  overflow:hidden;
+}
+.field{
+  position:relative;
+  aspect-ratio:16/10;
+  background:linear-gradient(135deg, var(--field-a) 0%, var(--field-b) 100%);
+}
+.cell{
+  position:absolute;
+  transform:translate(-50%,-50%);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  background:transparent;
+  border:none;
+  cursor:pointer;
+  padding:3px;
+  margin:0;
+  user-select:none;
+  line-height:1;
+}
+.cell:focus-visible{outline:2px solid var(--ink);outline-offset:1px;z-index:999 !important;border-radius:6px;}
+.filler{
+  position:absolute;
+  pointer-events:none;
+  display:inline-block;
+  line-height:1;
+  font-size:clamp(12px,2.3vw,18px);
+  transform:translate(-50%,-50%) rotate(var(--rot,0deg)) scale(var(--scale,1));
+  filter:drop-shadow(0 1px 1px rgba(21,31,109,0.35));
+}
+.sprite{
+  display:inline-block;
+  font-size:clamp(18px,3.1vw,30px);
+  transform:rotate(var(--rot,0deg)) scale(var(--scale,1));
+  transition:transform .12s ease;
+  filter:drop-shadow(0 1px 1.5px rgba(21,31,109,0.4));
+}
+.cell:hover .sprite{
+  transform:rotate(var(--rot,0deg)) scale(calc(var(--scale,1) * 1.22));
+}
+.cell.found{
+  pointer-events:none;
+}
+.cell.found .sprite{
+  animation:splashPop .5s ease-out;
+}
+.cell.found::after{
+  content:'';
+  position:absolute;
+  inset:-6px;
+  border-radius:50%;
+  animation:splash .6s ease-out;
+  pointer-events:none;
+}
+@keyframes splash{
+  0%{box-shadow:0 0 0 0 rgba(38,208,124,0.6);}
+  100%{box-shadow:0 0 0 22px rgba(38,208,124,0);}
+}
+@keyframes splashPop{
+  0%{transform:rotate(var(--rot,0deg)) scale(var(--scale,1));}
+  40%{transform:rotate(var(--rot,0deg)) scale(calc(var(--scale,1) * 1.5));}
+  100%{transform:rotate(var(--rot,0deg)) scale(calc(var(--scale,1) * 1.1));}
+}
+
+.overlay{
+  position:absolute;
+  inset:0;
+  background:rgba(146,193,233,0.97);
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:12px;
+  text-align:center;
+  padding:24px;
+  z-index:5000;
+}
+.overlay.hidden{display:none;}
+.overlay p{margin:0;color:var(--ink);max-width:340px;font-size:0.95rem;}
+input#playerName{
+  font-family:var(--font-body);
+  padding:9px 14px;
+  border:2px solid var(--ink);
+  border-radius:8px;
+  font-size:1rem;
+  width:220px;
+  text-align:center;
+  background:#fff;
+}
+input#playerName:focus-visible{outline:3px solid var(--coral);outline-offset:1px;}
+
+.postmark{
+  width:104px;height:104px;
+  border:4px solid var(--berry);
+  border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  transform:rotate(-10deg);
+  font-family:var(--font-display);
+  color:var(--berry);
+  font-weight:700;
+  font-size:0.8rem;
+  text-align:center;
+  line-height:1.15;
+  animation:stampIn .5s cubic-bezier(.34,1.56,.64,1);
+}
+@keyframes stampIn{
+  0%{transform:scale(2.4) rotate(-10deg);opacity:0;}
+  100%{transform:scale(1) rotate(-10deg);opacity:1;}
+}
+.victory-time{
+  font-family:var(--font-mono);
+  font-size:1.6rem;
+  color:var(--ink);
+  font-weight:700;
+}
+.overlay-actions{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-top:6px;}
+
+.leaderboard{
+  margin-top:26px;
+  background:var(--card);
+  border-radius:14px;
+  border-top:4px dashed var(--coral);
+  padding:22px 22px 20px;
+  box-shadow:0 3px 0 rgba(21,31,109,0.2), 0 14px 32px rgba(0,0,0,0.3);
+}
+.leaderboard h2{
+  font-family:var(--font-display);
+  color:var(--coral);
+  margin:0 0 12px;
+  font-size:1.2rem;
+}
+.lb-row{
+  display:flex;
+  justify-content:space-between;
+  font-family:var(--font-mono);
+  font-size:0.9rem;
+  padding:7px 0;
+  border-bottom:1px dashed rgba(21,31,109,0.22);
+  color:var(--ink);
+}
+.lb-row:last-child{border-bottom:none;}
+.lb-row.lb-rank-1{background:rgba(255,178,91,0.4);border-radius:8px;padding:9px 10px;font-weight:700;border-bottom:none;}
+.lb-row.lb-rank-2{background:rgba(120,135,150,0.22);border-radius:8px;padding:9px 10px;font-weight:700;border-bottom:none;}
+.lb-row.lb-rank-3{background:rgba(154,51,36,0.22);border-radius:8px;padding:9px 10px;font-weight:700;border-bottom:none;}
+.lb-name{display:flex;align-items:center;gap:6px;}
+.lb-empty{color:rgba(21,31,109,0.6);font-family:var(--font-body);font-size:0.9rem;}
+.lb-note{
+  margin:12px 0 0;
+  font-size:0.75rem;
+  color:rgba(21,31,109,0.5);
+}
+@media (prefers-reduced-motion: reduce){
+  *{animation-duration:.01ms !important;animation-iteration-count:1 !important;transition-duration:.01ms !important;}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="eyebrow">Payop Online Summer Camp</div>
+  <h1>🍓 Strawberry Hunt</h1>
+  <p class="subtitle" id="subtitleText">Strawberries are hiding in the fruit patch. Find them all — fastest time wins.</p>
+
+  <div class="postcard">
+    <div class="stamp">🍓 HUNT</div>
+    <div class="hud">
+      <div class="chip" id="timerChip">00.00s</div>
+      <div class="found-count" id="foundCount">Found: 0 / 0</div>
+    </div>
+
+    <div class="field-wrap">
+      <div class="field" id="field"></div>
+
+      <div class="overlay" id="startOverlay">
+        <p id="overlayInstructions"><strong>Ready?</strong> Strawberries 🍓 are camouflaged among the other fruit. Click every one you spot — the clock starts the second you hit start.</p>
+        <input type="text" id="playerName" placeholder="Your name" maxlength="24">
+        <button class="primary" id="startOverlayBtn" type="button">Start hunt</button>
+      </div>
+
+      <div class="overlay hidden" id="victoryOverlay">
+        <div class="postmark">SEASON<br>COMPLETE</div>
+        <div class="victory-time" id="victoryTime">0.00s</div>
+        <p>All strawberries found. Nice eyes.</p>
+        <div class="overlay-actions">
+          <button class="primary" id="playAgainBtn" type="button">Play again</button>
+          <button class="ghost" id="copyBtn" type="button">Copy result</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="leaderboard">
+    <h2>🏆 Fastest hunters</h2>
+    <div id="lbList" class="lb-empty">Loading leaderboard…</div>
+    <p class="lb-note">Updates live — everyone playing sees the same board, in real time.</p>
+  </div>
+</div>
+
+<script>
+const FRUITS = ['🍉','🍇','🍊','🍑','🍒','🥭','🍍','🥝','🍌','🍋','🍈','🥥','🫐','🍏'];
+const COLS = 16, ROWS = 11, TOTAL = COLS*ROWS, TARGETS = 7;
+
+// ---- Firebase setup ----
+// 1) Create a free project: https://console.firebase.google.com
+// 2) Build > Realtime Database > Create Database (test mode is fine to start)
+// 3) Project settings (gear icon) > Your apps > Web </> > register an app > copy the config below
+// 4) Paste your own values here, replacing every PASTE_... placeholder
+const firebaseConfig = {
+  apiKey: "AIzaSyAiAhKdOS6NRz8ZDy8bhlg7Y8b0bLKnCMs",
+  authDomain: "strawberries-hunt.firebaseapp.com",
+  databaseURL: "https://strawberries-hunt-default-rtdb.firebaseio.com",
+  projectId: "strawberries-hunt",
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+document.getElementById('subtitleText').textContent =
+  TARGETS+' strawberries are hiding in the fruit patch. Find them all — fastest time wins.';
+document.getElementById('overlayInstructions').innerHTML =
+  '<strong>Ready?</strong> '+TARGETS+' strawberries 🍓 are camouflaged among the other fruit. Click every one you spot — the clock starts the second you hit start.';
+
+const field = document.getElementById('field');
+const startOverlay = document.getElementById('startOverlay');
+const victoryOverlay = document.getElementById('victoryOverlay');
+const startOverlayBtn = document.getElementById('startOverlayBtn');
+const playAgainBtn = document.getElementById('playAgainBtn');
+const copyBtn = document.getElementById('copyBtn');
+const timerChip = document.getElementById('timerChip');
+const foundCountEl = document.getElementById('foundCount');
+const victoryTimeEl = document.getElementById('victoryTime');
+const playerNameInput = document.getElementById('playerName');
+const lbList = document.getElementById('lbList');
+
+let foundCount = 0;
+let gameActive = false;
+let startTime = 0;
+let rafId = null;
+let currentName = 'Player';
+
+function randRange(min, max){ return Math.random()*(max-min)+min; }
+
+function appendFillerLayer(){
+  // Dense, non-interactive fruit sitting behind the clickable layer so no
+  // background ever shows through, like a fully-packed collage.
+  const FCOLS = 22, FROWS = 14, FTOTAL = FCOLS*FROWS;
+  const fcellW = 100/FCOLS;
+  const fcellH = 100/FROWS;
+  for(let i=0;i<FTOTAL;i++){
+    const row = Math.floor(i/FCOLS);
+    const col = i%FCOLS;
+    const baseX = (col+0.5)*fcellW;
+    const baseY = (row+0.5)*fcellH;
+    const jitterX = randRange(-fcellW*0.55, fcellW*0.55);
+    const jitterY = randRange(-fcellH*0.55, fcellH*0.55);
+    const x = Math.min(99, Math.max(1, baseX+jitterX));
+    const y = Math.min(98, Math.max(2, baseY+jitterY));
+    const fruit = FRUITS[Math.floor(Math.random()*FRUITS.length)];
+    const rot = randRange(-30,30);
+    const scale = randRange(0.7,1.05);
+    const span = document.createElement('span');
+    span.className = 'filler';
+    span.setAttribute('aria-hidden', 'true');
+    span.style.left = x+'%';
+    span.style.top = y+'%';
+    span.style.zIndex = i; // always beneath the clickable layer
+    span.style.setProperty('--rot', rot+'deg');
+    span.style.setProperty('--scale', scale);
+    span.textContent = fruit;
+    field.appendChild(span);
+  }
+}
+
+function buildGrid(){
+  field.innerHTML = '';
+  appendFillerLayer();
+
+  const targetIdx = new Set();
+  while(targetIdx.size < TARGETS){
+    targetIdx.add(Math.floor(Math.random()*TOTAL));
+  }
+  const cellW = 100/COLS;
+  const cellH = 100/ROWS;
+
+  const items = [];
+  for(let i=0;i<TOTAL;i++){
+    const row = Math.floor(i/COLS);
+    const col = i%COLS;
+    const isTarget = targetIdx.has(i);
+    const baseX = (col+0.5)*cellW;
+    const baseY = (row+0.5)*cellH;
+    // tight packing: jitter can push well into neighboring cells so items overlap
+    const jitterX = randRange(-cellW*0.6, cellW*0.6);
+    const jitterY = randRange(-cellH*0.6, cellH*0.6);
+    const x = Math.min(98.5, Math.max(1.5, baseX+jitterX));
+    const y = Math.min(97, Math.max(3, baseY+jitterY));
+    const fruit = isTarget ? '🍓' : FRUITS[Math.floor(Math.random()*FRUITS.length)];
+    const rot = randRange(-28,28);
+    const scale = randRange(0.9,1.4);
+    items.push({x,y,fruit,rot,scale,isTarget});
+  }
+  // shuffle render order so overlap/stacking feels organic, not row-by-row
+  for(let i=items.length-1;i>0;i--){
+    const j = Math.floor(Math.random()*(i+1));
+    const tmp = items[i]; items[i] = items[j]; items[j] = tmp;
+  }
+
+  items.forEach((item, idx)=>{
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'cell';
+    btn.setAttribute('aria-label', 'Fruit tile');
+    btn.dataset.target = item.isTarget ? '1' : '0';
+    btn.style.left = item.x+'%';
+    btn.style.top = item.y+'%';
+    // targets stay on top of the whole pile so they're always reachable;
+    // decoys sit above the filler layer but below targets
+    btn.style.zIndex = item.isTarget ? (1000+idx) : (400+idx);
+    const sprite = document.createElement('span');
+    sprite.className = 'sprite';
+    sprite.style.setProperty('--rot', item.rot+'deg');
+    sprite.style.setProperty('--scale', item.scale);
+    sprite.textContent = item.fruit;
+    btn.appendChild(sprite);
+    btn.addEventListener('click', onCellClick);
+    field.appendChild(btn);
+  });
+}
+
+function onCellClick(e){
+  if(!gameActive) return;
+  const btn = e.currentTarget;
+  if(btn.dataset.target !== '1' || btn.classList.contains('found')) return;
+  btn.classList.add('found');
+  btn.setAttribute('aria-label', 'Strawberry found');
+  foundCount++;
+  foundCountEl.textContent = 'Found: '+foundCount+' / '+TARGETS;
+  if(foundCount === TARGETS){
+    endGame();
+  }
+}
+
+function formatTime(sec){
+  return sec.toFixed(2)+'s';
+}
+
+function tick(){
+  const elapsed = (performance.now()-startTime)/1000;
+  timerChip.textContent = formatTime(elapsed);
+  rafId = requestAnimationFrame(tick);
+}
+
+function startGame(){
+  const nameVal = playerNameInput.value.trim();
+  currentName = nameVal.length ? nameVal : 'Player';
+  foundCount = 0;
+  foundCountEl.textContent = 'Found: 0 / '+TARGETS;
+  buildGrid();
+  startOverlay.classList.add('hidden');
+  victoryOverlay.classList.add('hidden');
+  gameActive = true;
+  startTime = performance.now();
+  timerChip.textContent = '00.00s';
+  if(rafId) cancelAnimationFrame(rafId);
+  tick();
+}
+
+async function endGame(){
+  gameActive = false;
+  if(rafId) cancelAnimationFrame(rafId);
+  const elapsed = (performance.now()-startTime)/1000;
+  timerChip.textContent = formatTime(elapsed);
+  victoryTimeEl.textContent = formatTime(elapsed);
+  victoryOverlay.classList.remove('hidden');
+  await saveScore(currentName, elapsed);
+  // no manual refresh needed — the live listener updates the board automatically
+}
+
+async function saveScore(name, time){
+  try{
+    // push() generates a unique key per entry, so simultaneous players
+    // never overwrite each other's result — everyone's score is kept.
+    await db.ref('scores').push({
+      name: name,
+      time: time,
+      ts: firebase.database.ServerValue.TIMESTAMP
+    });
+  }catch(err){
+    console.error('Could not save score', err);
+  }
+}
+
+function renderLeaderboard(list){
+  if(list.length === 0){
+    lbList.className = 'lb-empty';
+    lbList.textContent = 'No runs yet — be the first to finish!';
+    return;
+  }
+  lbList.className = '';
+  lbList.innerHTML = '';
+  list.forEach((entry, idx)=>{
+    const rank = idx+1;
+    const row = document.createElement('div');
+    row.className = 'lb-row' + (rank<=3 ? ' lb-rank-'+rank : '');
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'lb-name';
+    const medal = rank===1 ? '🥇' : rank===2 ? '🥈' : rank===3 ? '🥉' : (rank+'.');
+    nameSpan.textContent = medal+' '+entry.name;
+    const timeSpan = document.createElement('span');
+    timeSpan.textContent = formatTime(entry.time);
+    row.appendChild(nameSpan);
+    row.appendChild(timeSpan);
+    lbList.appendChild(row);
+  });
+}
+
+function listenLeaderboard(){
+  lbList.textContent = 'Loading leaderboard…';
+  lbList.className = 'lb-empty';
+  db.ref('scores').on('value', (snapshot)=>{
+    const data = snapshot.val() || {};
+    const entries = Object.values(data).filter(e => e && typeof e.time === 'number' && typeof e.name === 'string');
+    entries.sort((a,b)=>a.time-b.time);
+    // one row per person: their best time only
+    const seen = new Set();
+    const best = [];
+    for(const e of entries){
+      if(seen.has(e.name)) continue;
+      seen.add(e.name);
+      best.push(e);
+    }
+    renderLeaderboard(best);
+  }, (err)=>{
+    console.error('Leaderboard error', err);
+    lbList.className = 'lb-empty';
+    lbList.textContent = 'Leaderboard unavailable right now.';
+  });
+}
+
+copyBtn.addEventListener('click', async ()=>{
+  const elapsed = victoryTimeEl.textContent;
+  const text = '🍓 I found all '+TARGETS+' strawberries in '+elapsed+' at the Payop Summer Camp hunt! Beat that 👀';
+  try{
+    await navigator.clipboard.writeText(text);
+    copyBtn.textContent = 'Copied!';
+  }catch(err){
+    copyBtn.textContent = 'Copy failed';
+  }
+  setTimeout(()=>{ copyBtn.textContent = 'Copy result'; }, 1600);
+});
+
+startOverlayBtn.addEventListener('click', startGame);
+playAgainBtn.addEventListener('click', startGame);
+
+buildGrid();
+listenLeaderboard();
+</script>
+</body>
+</html>
